@@ -1,0 +1,13 @@
+{
+  "name": "platformer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "parcel ./src/index.html"
+  },
+  "devDependencies": {
+    "@parcel/transformer-sass": "2.3.2",
+    "parcel": "^2.3.2"
+  }
+}
