@@ -1,33 +1,13 @@
+import { CAMERA, GRAVITY } from './constants'
 import './index.scss'
-
-import { Thing, Plane, Axis } from './types'
+import { Thing, Axis, World } from './p1-5'
 
 const canvas: HTMLCanvasElement | null = document.querySelector('#canvas')
 if (!canvas) throw new Error('No canvas detected.')
 const ctx = canvas.getContext('2d')
 if (!ctx) throw new Error('Could not get 2D context from canvas.')
 
-let state: State = {
-  things: [
-    {
-      type: 'ball',
-      posX: 0,
-      posY: 50,
-      size: 1,
-      velX: 0,
-      velY: 0,
-      elasticity: 1,
-    },
-  ],
-  planes: [
-    {
-      axis: 'x',
-      pos: 0,
-      direction: 1,
-    },
-  ],
-  prevTick: Date.now(),
-}
+const world = new World()
 
 const convertDimension = (axis: Axis, units: number): number => {
   if (axis === 'x') {
@@ -60,46 +40,70 @@ const startup = () => {
     MAX_CANVAS_SIZE,
     (cameraWidth / cameraHeight) * MAX_CANVAS_SIZE
   )
-}
 
-const main = () => {
-  const currTick = Date.now()
-  const timePassed = currTick - state.prevTick
+  reset()
+  const resetButtonEl = document.querySelector('#reset')
+  resetButtonEl?.addEventListener('click', reset)
 
-  for (const thing of state.things) {
-    console.log(thing.velY)
-    updateThing(thing, timePassed)
-  }
+  const addBallButtonEl = document.querySelector('#add-ball')
+  addBallButtonEl?.addEventListener('click', addRandomBall)
 
-  state.prevTick = currTick
-}
-
-const updateThing = (thing: Thing, timePassed: number) => {
-  const prevVelY = thing.velY
-  thing.velY += GRAVITY * timePassed
-  thing.posY += ((prevVelY + thing.velY) / 2) * timePassed
-
-  for (const plane of state.planes) {
-    const thingPos = plane.axis === 'x' ? thing.posY : thing.posX
-    const overlap = (thingPos - plane.pos) * plane.direction < 0
-
-    // NOTE: Simplified rebound simulation.
-    if (overlap) {
-      if (plane.axis === 'x') {
-        thing.velY *= -1 * thing.elasticity
-        thing.posY = (2 * plane.pos - thingPos) * thing.elasticity
-      } else {
-        thing.velX *= -1 * thing.elasticity
-        thing.posX = (2 * plane.pos - thingPos) * thing.elasticity
-      }
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') {
+      // world.state.gravityX = 0
+      world.state.gravityY = GRAVITY
     }
-  }
+    if (event.key === 'ArrowLeft') {
+      world.state.gravityX = GRAVITY
+      // world.state.gravityY = 0
+    }
+    if (event.key === 'ArrowRight') {
+      world.state.gravityX = -GRAVITY
+      // world.state.gravityY = 0
+    }
+
+    if (event.key === 'ArrowUp') {
+      // world.state.gravityX = 0
+      world.state.gravityY = -GRAVITY
+    }
+  })
+}
+
+const reset = () => {
+  world.reset()
+  world.addThing({
+    type: 'ball',
+    posX: 0,
+    posY: 50,
+    size: 1,
+    velX: 0,
+    velY: 0,
+    elasticity: Math.sqrt(1 / 2),
+    // elasticity: 1,
+  })
+  world.addPlane({
+    axis: 'x',
+    direction: 1,
+    pos: 0,
+  })
+}
+
+const addRandomBall = () => {
+  world.addThing({
+    type: 'ball',
+    posX: CAMERA.left + Math.random() * cameraWidth,
+    posY: CAMERA.bottom + Math.random() * cameraHeight,
+    size: Math.ceil(Math.random() * MAX_BALL_SIZE),
+    velX: 0,
+    velY: 0,
+    elasticity: Math.sqrt(1 / 2),
+  })
 }
 
 const render = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  for (const thing of state.things) {
+  for (const thing of world.state.things) {
     renderThing(thing)
   }
 }
@@ -123,25 +127,12 @@ const renderThing = (thing: Thing) => {
   throw new Error('Invalid object type: ' + thing.type)
 }
 
-type State = {
-  things: Thing[]
-  planes: Plane[]
-  prevTick: number
-}
-
-const CAMERA = {
-  top: 100,
-  bottom: 0,
-  left: -50,
-  right: 50,
-}
-
 const cameraHeight = CAMERA.top - CAMERA.bottom
 const cameraWidth = CAMERA.right - CAMERA.left
 
-const GRAVITY = -10 / 1000 / 1000 // meters / millisecond / millisecond
-
 const MAIN_TICK_INTERVAL_MS = 1000 / 60
+
+const MAX_BALL_SIZE = 4
 
 const MAX_CANVAS_SIZE = 600
 
@@ -150,5 +141,5 @@ const RENDER_TICK_INTERVAL_MS = 1000 / 60
 startup()
 render()
 
-setInterval(main, MAIN_TICK_INTERVAL_MS)
+setInterval(() => world.loop(), MAIN_TICK_INTERVAL_MS)
 setInterval(render, RENDER_TICK_INTERVAL_MS)
