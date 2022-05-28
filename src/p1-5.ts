@@ -144,7 +144,7 @@ export type State = {
   things: Thing[]
 }
 
-export const GRAVITY = -10 / 1000 / 1000 // meters / millisecond / millisecond
+export const GRAVITY = 10 / 1000 / 1000 // meters / millisecond / millisecond
 
 const INITIAL_STATE = {
   gravityX: 0,

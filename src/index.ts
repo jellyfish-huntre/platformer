@@ -1,13 +1,47 @@
 import { CAMERA, GRAVITY } from './constants'
 import './index.scss'
-import { Thing, Axis, World } from './p1-5'
+import { Thing, Axis } from './p1-5'
+import p2 from 'p2'
 
 const canvas: HTMLCanvasElement | null = document.querySelector('#canvas')
 if (!canvas) throw new Error('No canvas detected.')
 const ctx = canvas.getContext('2d')
 if (!ctx) throw new Error('Could not get 2D context from canvas.')
 
-const world = new World()
+const world = new p2.World({
+  gravity: [0, -9.82],
+})
+
+const ballBody = new p2.Body({
+  mass: 5,
+  position: [0, 50],
+})
+
+const ballShape = new p2.Circle({ radius: 0.5 })
+ballBody.addShape(ballShape)
+world.addBody(ballBody)
+
+const ballMaterial = new p2.Material()
+ballShape.material = ballMaterial
+
+const groundBody = new p2.Body({
+  mass: 0,
+})
+
+const groundShape = new p2.Plane()
+groundBody.addShape(groundShape)
+world.addBody(groundBody)
+
+const groundMaterial = new p2.Material()
+groundShape.material = groundMaterial
+
+const groundvsBall = new p2.ContactMaterial(groundMaterial, ballMaterial, {
+  friction: 0.5,
+  restitution: Math.sqrt(Math.sqrt(1 / 2)),
+})
+
+world.addContactMaterial(groundvsBall)
+world.defaultContactMaterial.restitution = Math.sqrt(1 / 2)
 
 const convertDimension = (axis: Axis, units: number): number => {
   if (axis === 'x') {
@@ -41,7 +75,6 @@ const startup = () => {
     (cameraWidth / cameraHeight) * MAX_CANVAS_SIZE
   )
 
-  reset()
   const resetButtonEl = document.querySelector('#reset')
   resetButtonEl?.addEventListener('click', reset)
 
@@ -50,81 +83,65 @@ const startup = () => {
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown') {
-      // world.state.gravityX = 0
-      world.state.gravityY = GRAVITY
+      world.gravity = [0, -9.82]
     }
     if (event.key === 'ArrowLeft') {
-      world.state.gravityX = GRAVITY
-      // world.state.gravityY = 0
+      world.gravity = [-9.82, 0]
     }
     if (event.key === 'ArrowRight') {
-      world.state.gravityX = -GRAVITY
-      // world.state.gravityY = 0
+      world.gravity = [9.82, 0]
     }
-
     if (event.key === 'ArrowUp') {
-      // world.state.gravityX = 0
-      world.state.gravityY = -GRAVITY
+      world.gravity = [0, 9.82]
     }
   })
 }
 
 const reset = () => {
-  world.reset()
-  world.addThing({
-    type: 'ball',
-    posX: 0,
-    posY: 50,
-    size: 1,
-    velX: 0,
-    velY: 0,
-    elasticity: Math.sqrt(1 / 2),
-    // elasticity: 1,
-  })
-  world.addPlane({
-    axis: 'x',
-    direction: 1,
-    pos: 0,
-  })
+  world.clear()
+  world.addBody(groundBody)
+  world.addContactMaterial(groundvsBall)
 }
 
 const addRandomBall = () => {
-  world.addThing({
-    type: 'ball',
-    posX: CAMERA.left + Math.random() * cameraWidth,
-    posY: CAMERA.bottom + Math.random() * cameraHeight,
-    size: Math.ceil(Math.random() * MAX_BALL_SIZE),
-    velX: 0,
-    velY: 0,
-    elasticity: Math.sqrt(1 / 2),
+  const randomBallBody = new p2.Body({
+    mass: Math.random() * 5,
+    position: [Math.random() * 100 - 50, Math.random() * 100],
   })
+
+  const randomBallShape = new p2.Circle({
+    radius: Math.random() * MAX_BALL_SIZE,
+  })
+
+  randomBallBody.addShape(randomBallShape)
+  randomBallShape.material = ballMaterial
+  world.addBody(randomBallBody)
 }
 
 const render = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-  for (const thing of world.state.things) {
-    renderThing(thing)
+  for (const body of world.bodies) {
+    renderThing(body)
   }
 }
 
-const renderThing = (thing: Thing) => {
-  if (thing.type === 'ball') {
-    ctx.beginPath()
-    ctx.ellipse(
-      convertPosition('x', thing.posX),
-      convertPosition('y', thing.posY),
-      convertDimension('x', thing.size / 2),
-      convertDimension('y', thing.size / 2),
-      0,
-      0,
-      2 * Math.PI
-    )
-    ctx.stroke()
-    return
+const renderThing = (body: p2.Body) => {
+  for (const shape of body.shapes) {
+    if (shape instanceof p2.Circle) {
+      ctx.beginPath()
+      ctx.ellipse(
+        convertPosition('x', body.interpolatedPosition[0]),
+        convertPosition('y', body.interpolatedPosition[1]),
+        convertDimension('x', shape.radius),
+        convertDimension('y', shape.radius),
+        0,
+        0,
+        2 * Math.PI
+      )
+      ctx.stroke()
+    }
+    // throw new Error('Invalid shape: ' + shape)
   }
-
-  throw new Error('Invalid object type: ' + thing.type)
 }
 
 const cameraHeight = CAMERA.top - CAMERA.bottom
@@ -141,5 +158,11 @@ const RENDER_TICK_INTERVAL_MS = 1000 / 60
 startup()
 render()
 
-setInterval(() => world.loop(), MAIN_TICK_INTERVAL_MS)
+let lastMainStep = Date.now()
+setInterval(() => {
+  const deltaTimeMs = Date.now() - lastMainStep
+  world.step(MAIN_TICK_INTERVAL_MS / 1000, deltaTimeMs / 1000)
+  lastMainStep = Date.now()
+}, MAIN_TICK_INTERVAL_MS)
+
 setInterval(render, RENDER_TICK_INTERVAL_MS)
